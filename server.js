@@ -3,58 +3,62 @@ const mongoose = require('mongoose');
 const cors = require('cors');
 require('dotenv').config();
 
+// Import ALL routes
+const authRoutes = require('./routes/authRoutes');
+const profileRoutes = require('./routes/profileRoutes');
+const dashboardRoutes = require('./routes/dashboardRoutes');
+const scanRoutes = require('./routes/scanRoutes');
+const alertRoutes = require('./routes/alertRoutes');
+const reportRoutes = require('./routes/reportRoutes');
+
 const app = express();
 
 // Middleware
 app.use(cors());
 app.use(express.json());
 
-// Import routes
-const authRoutes = require('./routes/authRoutes');
+// Debug middleware
+app.use((req, res, next) => {
+  console.log(`${new Date().toISOString()} ${req.method} ${req.url}`);
+  next();
+});
 
-// Use routes
+// Routes
 app.use('/api/auth', authRoutes);
-
-// Add other routes here as your teammates complete them:
-// app.use('/api/profile', require('./routes/profileRoutes'));
-// app.use('/api/scans', require('./routes/scanRoutes'));
-// app.use('/api/alerts', require('./routes/alertRoutes'));
-// app.use('/api/reports', require('./routes/reportRoutes'));
-// app.use('/api/dashboard', require('./routes/dashboardRoutes'));
+app.use('/api/profile', profileRoutes);
+app.use('/api/dashboard', dashboardRoutes);
+app.use('/api/scans', scanRoutes);
+app.use('/api/alerts', alertRoutes);
+app.use('/api/reports', reportRoutes);
 
 // Root endpoint
 app.get('/', (req, res) => {
   res.json({
-    message: 'CyberVista API - FinTech Security Platform',
-    version: '1.0.0',
-    status: 'running',
-    endpoints: {
-      auth: '/api/auth',
-      // Add other endpoints as they become available
-    }
+    message: 'CyberVista API',
+    status: 'All routes mounted',
+    endpoints: [
+      '/api/auth/register',
+      '/api/auth/login',
+      '/api/profile',
+      '/api/dashboard/:userId',
+      '/api/scans',
+      '/api/alerts',
+      '/api/reports'
+    ]
   });
 });
 
-// Connect to MongoDB
+// MongoDB connection
 mongoose.connect(process.env.MONGO_URI)
   .then(() => {
-    console.log('✅ MongoDB Connected successfully');
+    console.log('✅ MongoDB Connected');
     
-    const PORT = process.env.PORT || 5000;
+    const PORT = process.env.PORT || 5001;  // Using 5001 to avoid AirPlay
     app.listen(PORT, () => {
       console.log(`🚀 Server running on port ${PORT}`);
       console.log(`🔗 http://localhost:${PORT}`);
-      console.log(`📁 Environment: ${process.env.NODE_ENV}`);
     });
   })
   .catch((err) => {
-    console.error('❌ MongoDB connection error:', err.message);
-    process.exit(1);
+    console.error('❌ MongoDB Error:', err.message);
   });
-
-// Handle unhandled promise rejections
-process.on('unhandledRejection', (err) => {
-  console.error('❌ Unhandled Rejection:', err.message);
-  // Close server & exit process
-  server.close(() => process.exit(1));
-});
