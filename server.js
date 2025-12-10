@@ -1,58 +1,60 @@
 const express = require('express');
 const mongoose = require('mongoose');
+const cors = require('cors');
 require('dotenv').config();
-
-// Import route
-const profileRoutes = require('./routes/profileRoutes');
 
 const app = express();
 
-// ==== CRITICAL: JSON middleware MUST be first ====
+// Middleware
+app.use(cors());
 app.use(express.json());
 
-// ==== Simple CORS ====
-app.use((req, res, next) => {
-  res.header('Access-Control-Allow-Origin', '*');
-  res.header('Access-Control-Allow-Methods', '*');
-  res.header('Access-Control-Allow-Headers', '*');
-  next();
-});
+// Import routes
+const authRoutes = require('./routes/authRoutes');
 
-// ==== Debug ====
-app.use((req, res, next) => {
-  console.log(`[${new Date().toISOString()}] ${req.method} ${req.url}`);
-  console.log('Headers:', req.headers['content-type']);
-  console.log('Body:', req.body);
-  console.log('---');
-  next();
-});
+// Use routes
+app.use('/api/auth', authRoutes);
 
-// ==== Route ====
-app.use('/api/profile', profileRoutes);
+// Add other routes here as your teammates complete them:
+// app.use('/api/profile', require('./routes/profileRoutes'));
+// app.use('/api/scans', require('./routes/scanRoutes'));
+// app.use('/api/alerts', require('./routes/alertRoutes'));
+// app.use('/api/reports', require('./routes/reportRoutes'));
+// app.use('/api/dashboard', require('./routes/dashboardRoutes'));
 
-// ==== Test route ====
+// Root endpoint
 app.get('/', (req, res) => {
-  res.json({ message: 'API Root' });
+  res.json({
+    message: 'CyberVista API - FinTech Security Platform',
+    version: '1.0.0',
+    status: 'running',
+    endpoints: {
+      auth: '/api/auth',
+      // Add other endpoints as they become available
+    }
+  });
 });
 
-// ==== 404 handler (AT THE END, no '*') ====
-app.use((req, res) => {
-  console.log('404 Route not found:', req.originalUrl);
-  res.status(404).json({ error: 'Route not found' });
-});
-
-// ==== Error handler ====
-app.use((err, req, res, next) => {
-  console.error('Server Error:', err);
-  res.status(500).json({ error: 'Internal server error' });
-});
-
-// ==== MongoDB ====
+// Connect to MongoDB
 mongoose.connect(process.env.MONGO_URI)
-  .then(() => console.log('✅ MongoDB Connected'))
-  .catch(err => console.error('❌ MongoDB Error:', err));
+  .then(() => {
+    console.log('✅ MongoDB Connected successfully');
+    
+    const PORT = process.env.PORT || 5000;
+    app.listen(PORT, () => {
+      console.log(`🚀 Server running on port ${PORT}`);
+      console.log(`🔗 http://localhost:${PORT}`);
+      console.log(`📁 Environment: ${process.env.NODE_ENV}`);
+    });
+  })
+  .catch((err) => {
+    console.error('❌ MongoDB connection error:', err.message);
+    process.exit(1);
+  });
 
-const PORT = 5001;
-app.listen(PORT, () => {
-  console.log(`🚀 Server on port ${PORT}`);
+// Handle unhandled promise rejections
+process.on('unhandledRejection', (err) => {
+  console.error('❌ Unhandled Rejection:', err.message);
+  // Close server & exit process
+  server.close(() => process.exit(1));
 });
