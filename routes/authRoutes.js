@@ -1,14 +1,31 @@
-
 const express = require('express');
 const router = express.Router();
-const authController = require('../controllers/authController');
+const {
+  register,
+  login,
+  getProfile,
+  updateProfile,
+  deactivateAccount,
+  requireAuth
+} = require('../controllers/authController');
 
-router.post('/register', authController.register);
+// PUBLIC ROUTES (No authentication needed)
 
-router.post('/login', authController.login);A
+// POST /api/auth/register - Create new user account
+router.post('/register', register);
 
-router.get('/me/:userId', authController.getMe);
+// POST /api/auth/login - Authenticate user and get token
+router.post('/login', login);
 
-router.get('/me', authController.getMe);
+// PROTECTED ROUTES (Authentication required)
+
+// GET /api/auth/profile - Get current user's profile
+router.get('/profile', requireAuth, getProfile);
+
+// PUT /api/auth/profile - Update user profile
+router.put('/profile', requireAuth, updateProfile);
+
+// DELETE /api/auth/deactivate - Deactivate user account (soft delete)
+router.delete('/deactivate', requireAuth, deactivateAccount);
 
 module.exports = router;
