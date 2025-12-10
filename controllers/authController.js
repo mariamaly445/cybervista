@@ -1,82 +1,189 @@
 const User = require('../models/User');
 const jwt = require('jsonwebtoken');
 
-// Helper: Create JWT
-const createToken = (userId) => {
-  return jwt.sign({ id: userId }, process.env.JWT_SECRET, {
-    expiresIn: '7d', // Token valid for 7 days
-  });
+// Create JWT Token
+const createToken = (userId, role) => {
+  // Remove fallback - only use environment variable
+  return jwt.sign(
+    { id: userId, role },
+    process.env.JWT_SECRET,
+    { expiresIn: process.env.JWT_EXPIRES_IN || '7d' }
+  );
 };
 
-// Register Controller
 exports.register = async (req, res) => {
   try {
-    const { email, password } = req.body;
+    const { email, password, name, companyName } = req.body;
 
-    // Input validation
-    if (!email || !password) {
-      return res.status(400).json({ message: 'Email and password are required.' });
+    // 1. Validation
+    if (!email || !password || !name || !companyName) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Please provide email, password, name, and company name' 
+      });
     }
-    if (!/^[\w-.]+@([\w-]+\.)+[\w-]{2,4}$/.test(email)) {
-      return res.status(400).json({ message: 'Invalid email format.' });
-    }
+
     if (password.length < 8) {
-      return res.status(400).json({ message: 'Password must be at least 8 characters.' });
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Password must be at least 8 characters' 
+      });
     }
 
-    // Check for duplicate email
+    // 2. Check if user already exists
     const existingUser = await User.findOne({ email });
     if (existingUser) {
-      return res.status(409).json({ message: 'Email already registered.' });
+      return res.status(409).json({ 
+        success: false, 
+        message: 'User already registered with this email' 
+      });
     }
 
-    // Create user
-    const user = await User.create({ email, password });
-
-    // Create JWT
-    const token = createToken(user._id);
-
-    res.status(201).json({
-      message: 'User registered successfully.',
-      token,
-      user: { id: user._id, email: user.email },
+    // 3. Create new user
+    const user = await User.create({
+      email,
+      password,
+      name,
+      companyName,
+      role: 'user'
     });
-  } catch (err) {
-    res.status(500).json({ message: 'Server error. Please try again.' });
+
+    // 4. Create token
+    const token = createToken(user._id, user.role);
+
+    // 5. Send response (without password)
+    res.status(201).json({
+      success: true,
+      message: 'Registration successful',
+      token,
+      user: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        companyName: user.companyName,
+        role: user.role,
+        createdAt: user.createdAt
+      }
+    });
+
+  } catch (error) {
+    console.error('Registration error:', error);
+    
+    // Handle duplicate key error (if unique constraint fails)
+    if (error.code === 11000) {
+      return res.status(409).json({
+        success: false,
+        message: 'Email already exists'
+      });
+    }
+    
+    // Handle validation errors
+    if (error.name === 'ValidationError') {
+      const messages = Object.values(error.errors).map(err => err.message);
+      return res.status(400).json({
+        success: false,
+        message: messages.join(', ')
+      });
+    }
+    
+    res.status(500).json({ 
+      success: false, 
+      message: 'Server error during registration' 
+    });
   }
 };
 
-// Login Controller
 exports.login = async (req, res) => {
   try {
     const { email, password } = req.body;
 
-    // Input validation
+    // 1. Validation
     if (!email || !password) {
-      return res.status(400).json({ message: 'Email and password are required.' });
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Please provide email and password' 
+      });
     }
 
-    // Find user and select password
+    // 2. Find user by email (include password for comparison)
     const user = await User.findOne({ email }).select('+password');
     if (!user) {
-      return res.status(401).json({ message: 'Invalid email or password.' });
+      return res.status(401).json({ 
+        success: false, 
+        message: 'Invalid email or password' 
+      });
     }
 
-    // Check password
-    const isMatch = await user.correctPassword(password, user.password);
+    // 3. Check password
+    const isMatch = await user.correctPassword(password);
     if (!isMatch) {
-      return res.status(401).json({ message: 'Invalid email or password.' });
+      return res.status(401).json({ 
+        success: false, 
+        message: 'Invalid email or password' 
+      });
     }
 
-    // Create JWT
-    const token = createToken(user._id);
+    // 4. Update last login
+    user.lastLogin = new Date();
+    await user.save({ validateBeforeSave: false });
+
+    // 5. Create token
+    const token = createToken(user._id, user.role);
+
+    // 6. Send response (without password)
+    res.status(200).json({
+      success: true,
+      message: 'Login successful',
+      token,
+      user: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        companyName: user.companyName,
+        role: user.role,
+        lastLogin: user.lastLogin
+      }
+    });
+
+  } catch (error) {
+    console.error('Login error:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Server error during login' 
+    });
+  }
+};
+
+exports.getMe = async (req, res) => {
+  try {
+   
+    const userId = req.params.userId || req.query.userId;
+    
+    if (!userId) {
+      return res.status(400).json({
+        success: false,
+        message: 'User ID is required'
+      });
+    }
+
+    const user = await User.findById(userId).select('-password');
+    
+    if (!user) {
+      return res.status(404).json({ 
+        success: false, 
+        message: 'User not found' 
+      });
+    }
 
     res.status(200).json({
-      message: 'Login successful.',
-      token,
-      user: { id: user._id, email: user.email },
+      success: true,
+      user
     });
-  } catch (err) {
-    res.status(500).json({ message: 'Server error. Please try again.' });
+  } catch (error) {
+    console.error('Get user error:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Server error' 
+    });
   }
 };
