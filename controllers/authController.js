@@ -1,82 +1,376 @@
 const User = require('../models/User');
 const jwt = require('jsonwebtoken');
 
-// Helper: Create JWT
-const createToken = (userId) => {
-  return jwt.sign({ id: userId }, process.env.JWT_SECRET, {
-    expiresIn: '7d', // Token valid for 7 days
-  });
+// Generate JWT Token
+const generateToken = (userId, companyName, role) => {
+  return jwt.sign(
+    { userId, companyName, role },
+    process.env.JWT_SECRET,
+    { expiresIn: process.env.JWT_EXPIRES_IN || '7d' }
+  );
 };
 
-// Register Controller
+// Email validation helper
+const isValidEmail = (email) => {
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  return emailRegex.test(email);
+};
+
+// CREATE - User Registration
 exports.register = async (req, res) => {
   try {
-    const { email, password } = req.body;
+    console.log('Register attempt:', { body: req.body });
+    
+    const { companyName, email, password } = req.body;
 
-    // Input validation
-    if (!email || !password) {
-      return res.status(400).json({ message: 'Email and password are required.' });
-    }
-    if (!/^[\w-.]+@([\w-]+\.)+[\w-]{2,4}$/.test(email)) {
-      return res.status(400).json({ message: 'Invalid email format.' });
-    }
-    if (password.length < 8) {
-      return res.status(400).json({ message: 'Password must be at least 8 characters.' });
-    }
-
-    // Check for duplicate email
-    const existingUser = await User.findOne({ email });
-    if (existingUser) {
-      return res.status(409).json({ message: 'Email already registered.' });
+    // Basic validation
+    if (!companyName || !email || !password) {
+      return res.status(400).json({
+        success: false,
+        message: 'Please provide company name, email, and password'
+      });
     }
 
-    // Create user
-    const user = await User.create({ email, password });
+    // Email validation
+    if (!isValidEmail(email)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Please provide a valid email address'
+      });
+    }
 
-    // Create JWT
-    const token = createToken(user._id);
-
-    res.status(201).json({
-      message: 'User registered successfully.',
-      token,
-      user: { id: user._id, email: user.email },
+    // Check for existing user
+    const existingUser = await User.findOne({ 
+      $or: [
+        { email: email.toLowerCase() }, 
+        { companyName: { $regex: new RegExp(`^${companyName}$`, 'i') } }
+      ] 
     });
-  } catch (err) {
-    res.status(500).json({ message: 'Server error. Please try again.' });
+
+    if (existingUser) {
+      const field = existingUser.email === email.toLowerCase() ? 'Email' : 'Company name';
+      return res.status(400).json({
+        success: false,
+        message: `${field} already exists`
+      });
+    }
+
+    // Create new user
+    const user = await User.create({
+      companyName: companyName.trim(),
+      email: email.toLowerCase().trim(),
+      password: password
+    });
+
+    // Generate JWT token
+    const token = generateToken(user._id, user.companyName, user.role);
+
+    // User response without password
+    const userResponse = {
+      id: user._id,
+      companyName: user.companyName,
+      email: user.email,
+      role: user.role,
+      isActive: user.isActive,
+      createdAt: user.createdAt
+    };
+    
+    res.status(201).json({
+      success: true,
+      message: 'Registration successful',
+      token,
+      user: userResponse
+    });
+
+  } catch (error) {
+    console.error('Registration error:', error);
+    
+    if (error.code === 11000) {
+      return res.status(400).json({
+        success: false,
+        message: 'Email or company name already exists'
+      });
+    }
+    
+    if (error.name === 'ValidationError') {
+      const errors = Object.values(error.errors).map(err => err.message);
+      return res.status(400).json({
+        success: false,
+        message: 'Validation error',
+        errors
+      });
+    }
+
+    res.status(500).json({
+      success: false,
+      message: 'Internal server error'
+    });
   }
 };
 
-// Login Controller
+// CREATE - User Login
 exports.login = async (req, res) => {
   try {
+    console.log('Login attempt:', { email: req.body.email });
+    
     const { email, password } = req.body;
 
-    // Input validation
+    // Basic validation
     if (!email || !password) {
-      return res.status(400).json({ message: 'Email and password are required.' });
+      return res.status(400).json({
+        success: false,
+        message: 'Please provide email and password'
+      });
     }
 
-    // Find user and select password
-    const user = await User.findOne({ email }).select('+password');
+    // Find user by email
+    const user = await User.findOne({ 
+      email: email.toLowerCase().trim() 
+    });
+
     if (!user) {
-      return res.status(401).json({ message: 'Invalid email or password.' });
+      return res.status(401).json({
+        success: false,
+        message: 'Invalid email or password'
+      });
+    }
+
+    // Check if account is active
+    if (!user.isActive) {
+      return res.status(403).json({
+        success: false,
+        message: 'Account is deactivated. Please contact support.'
+      });
     }
 
     // Check password
-    const isMatch = await user.correctPassword(password, user.password);
-    if (!isMatch) {
-      return res.status(401).json({ message: 'Invalid email or password.' });
+    const isPasswordValid = await user.comparePassword(password);
+    if (!isPasswordValid) {
+      return res.status(401).json({
+        success: false,
+        message: 'Invalid email or password'
+      });
     }
 
-    // Create JWT
-    const token = createToken(user._id);
+    // Generate JWT token
+    const token = generateToken(user._id, user.companyName, user.role);
+
+    // User response without password
+    const userResponse = {
+      id: user._id,
+      companyName: user.companyName,
+      email: user.email,
+      role: user.role,
+      isActive: user.isActive,
+      createdAt: user.createdAt,
+      updatedAt: user.updatedAt
+    };
+    
+    res.status(200).json({
+      success: true,
+      message: 'Login successful',
+      token,
+      user: userResponse
+    });
+
+  } catch (error) {
+    console.error('Login error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Internal server error'
+    });
+  }
+};
+
+// READ - Get Current User Profile (Protected)
+exports.getProfile = async (req, res) => {
+  try {
+    const userId = req.user?.userId;
+    
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        message: 'Authentication required'
+      });
+    }
+
+    const user = await User.findById(userId).select('-password');
+    
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found'
+      });
+    }
 
     res.status(200).json({
-      message: 'Login successful.',
-      token,
-      user: { id: user._id, email: user.email },
+      success: true,
+      user
     });
-  } catch (err) {
-    res.status(500).json({ message: 'Server error. Please try again.' });
+
+  } catch (error) {
+    console.error('Get profile error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Internal server error'
+    });
+  }
+};
+
+// UPDATE - Update User Profile (Protected)
+exports.updateProfile = async (req, res) => {
+  try {
+    const userId = req.user?.userId;
+    
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        message: 'Authentication required'
+      });
+    }
+
+    // Don't allow updating sensitive fields
+    const { email, password, role, ...updateData } = req.body;
+
+    const user = await User.findByIdAndUpdate(
+      userId,
+      updateData,
+      { 
+        new: true,
+        runValidators: true
+      }
+    ).select('-password');
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found'
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: 'Profile updated successfully',
+      user
+    });
+
+  } catch (error) {
+    console.error('Update profile error:', error);
+    
+    if (error.name === 'ValidationError') {
+      const errors = Object.values(error.errors).map(err => err.message);
+      return res.status(400).json({
+        success: false,
+        message: 'Validation error',
+        errors
+      });
+    }
+
+    res.status(500).json({
+      success: false,
+      message: 'Internal server error'
+    });
+  }
+};
+
+// DELETE - Deactivate User Account (Protected)
+exports.deactivateAccount = async (req, res) => {
+  try {
+    const userId = req.user?.userId;
+    
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        message: 'Authentication required'
+      });
+    }
+
+    // Soft delete - mark as inactive
+    const user = await User.findByIdAndUpdate(
+      userId,
+      { isActive: false },
+      { new: true }
+    ).select('-password');
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found'
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: 'Account deactivated successfully'
+    });
+
+  } catch (error) {
+    console.error('Deactivate account error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Internal server error'
+    });
+  }
+};
+
+// Authentication Middleware (Protects routes)
+exports.requireAuth = async (req, res, next) => {
+  try {
+    // Get token from Authorization header
+    const authHeader = req.headers.authorization;
+    
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return res.status(401).json({
+        success: false,
+        message: 'Access denied. No token provided.'
+      });
+    }
+
+    const token = authHeader.split(' ')[1];
+
+    // Verify token
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+
+    // Check if user still exists and is active
+    const user = await User.findById(decoded.userId);
+    if (!user) {
+      return res.status(401).json({
+        success: false,
+        message: 'User no longer exists'
+      });
+    }
+
+    if (!user.isActive) {
+      return res.status(401).json({
+        success: false,
+        message: 'Account is deactivated'
+      });
+    }
+
+    // Attach user info to request
+    req.user = decoded;
+    next();
+
+  } catch (error) {
+    console.error('Auth middleware error:', error);
+    
+    if (error.name === 'JsonWebTokenError') {
+      return res.status(401).json({
+        success: false,
+        message: 'Invalid token'
+      });
+    }
+
+    if (error.name === 'TokenExpiredError') {
+      return res.status(401).json({
+        success: false,
+        message: 'Token has expired. Please login again.'
+      });
+    }
+
+    res.status(500).json({
+      success: false,
+      message: 'Authentication error'
+    });
   }
 };
