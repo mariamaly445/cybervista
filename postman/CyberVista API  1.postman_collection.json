@@ -178,8 +178,8 @@
 					"port": "5001",
 					"path": [
 						"api",
-						"scans",
-						"PASTE_SCAN_ID_HERE"
+						"scans"
+						
 					]
 				}
 			},
