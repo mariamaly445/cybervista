@@ -11,7 +11,6 @@ const scanRoutes = require('./routes/scanRoutes');
 const alertRoutes = require('./routes/alertRoutes');
 const reportRoutes = require('./routes/reportRoutes');
 
-
 const app = express();
 
 // Middleware
@@ -20,19 +19,18 @@ app.use(express.json());
 
 // Debug middleware
 app.use((req, res, next) => {
-  console.log(⁠ ${new Date().toISOString()} ${req.method} ${req.url} ⁠);
+  console.log(`${new Date().toISOString()} ${req.method} ${req.url}`);
   next();
 });
 
 // Routes
-
-// Use ALL routes
 app.use('/api/auth', authRoutes);
 app.use('/api/profile', profileRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/scans', scanRoutes);
 app.use('/api/alerts', alertRoutes);
 app.use('/api/reports', reportRoutes);
+
 // Root endpoint
 app.get('/', (req, res) => {
   res.json({
@@ -54,11 +52,11 @@ app.get('/', (req, res) => {
 mongoose.connect(process.env.MONGO_URI)
   .then(() => {
     console.log('✅ MongoDB Connected');
-    
-    const PORT = process.env.PORT || 5001;  // Using 5001 to avoid AirPlay
+
+    const PORT = process.env.PORT || 5001;
     app.listen(PORT, () => {
-      console.log(⁠ 🚀 Server running on port ${PORT} ⁠);
-      console.log(⁠ 🔗 http://localhost:${PORT} ⁠);
+      console.log(`🚀 Server running on port ${PORT}`);
+      console.log(`🔗 http://localhost:${PORT}`);
     });
   })
   .catch((err) => {
