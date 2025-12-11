@@ -19,11 +19,13 @@ app.use(express.json());
 
 // Debug middleware
 app.use((req, res, next) => {
-  console.log(`${new Date().toISOString()} ${req.method} ${req.url}`);
+  console.log(`[${new Date().toISOString()}] ${req.method} ${req.url}`);
   next();
 });
 
 // Routes
+
+// Use ALL routes
 app.use('/api/auth', authRoutes);
 app.use('/api/profile', profileRoutes);
 app.use('/api/dashboard', dashboardRoutes);
@@ -48,19 +50,12 @@ app.get('/', (req, res) => {
   });
 });
 
-// ADD THESE 2 LINES ONLY (Error handling)
-app.use((req, res) => res.status(404).json({ error: 'Route not found' }));
-app.use((err, req, res, next) => {
-  console.error(err.stack);
-  res.status(500).json({ error: 'Server error' });
-});
-
-// MongoDB connection (Your friend's code)
+// MongoDB connection
 mongoose.connect(process.env.MONGO_URI)
   .then(() => {
     console.log('✅ MongoDB Connected');
-
-    const PORT = process.env.PORT || 5001;
+    
+    const PORT = process.env.PORT || 5001;  // Using 5001 to avoid AirPlay
     app.listen(PORT, () => {
       console.log(`🚀 Server running on port ${PORT}`);
       console.log(`🔗 http://localhost:${PORT}`);

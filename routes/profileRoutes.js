@@ -1,14 +1,21 @@
 const express = require('express');
 const router = express.Router();
+
 const {
   createProfile,
-  getProfile
+  getProfile,
+  updateProfile
 } = require('../controllers/profileController');
 
-// POST /api/profile - Create new profile
-router.post('/', createProfile);
+const { requireAuth } = require('../controllers/authController');
 
-// GET /api/profile/:userId - Get profile by user ID
-router.get('/:userId', getProfile);
+// CREATE profile
+router.post('/', requireAuth, createProfile);
+
+// READ profile
+router.get('/', requireAuth, getProfile);
+
+// UPDATE profile
+router.put('/', requireAuth, updateProfile);
 
 module.exports = router;

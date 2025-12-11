@@ -9,18 +9,20 @@ const getDashboardData = async (req, res) => {
     const userId = req.params.userId;
 
     // Get profile data
-    const profile = await CompanysProfile.findOne({ userId })
-      .populate('userId', 'companyName email industry');
+    const profile = await CompanyProfile.findOne({ userId }).populate(
+      'userId',
+      'companyName email'
+    );
 
     // Get latest scan
     const latestScan = await VulnerabilityScan.findOne({ userId })
       .sort({ scanDate: -1 })
-      .limit(1);
+      .exec();
 
     // Get unread alerts count
-    const unreadAlerts = await SecurityAlert.countDocuments({ 
-      userId, 
-      isRead: false 
+    const unreadAlerts = await SecurityAlert.countDocuments({
+      userId,
+      isRead: false
     });
 
     // Get total scans
@@ -33,8 +35,7 @@ const getDashboardData = async (req, res) => {
     const dashboardData = {
       companyInfo: {
         name: profile.userId?.companyName || 'Unknown',
-        email: profile.userId?.email || '',
-        industry: profile.userId?.industry || ''
+        email: profile.userId?.email || ''
       },
       securityMetrics: {
         overallScore: profile.overallSecurityScore || 0,
@@ -42,11 +43,13 @@ const getDashboardData = async (req, res) => {
         complianceStatus: profile.complianceStatus || {}
       },
       scanInfo: {
-        latestScan: latestScan ? {
-          date: latestScan.scanDate,
-          status: latestScan.status,
-          vulnerabilities: latestScan.results || {}
-        } : null,
+        latestScan: latestScan
+          ? {
+              date: latestScan.scanDate,
+              status: latestScan.status,
+              vulnerabilities: latestScan.results || {}
+            }
+          : null,
         totalScans: totalScans
       },
       alerts: {
@@ -54,15 +57,19 @@ const getDashboardData = async (req, res) => {
         totalUnread: unreadAlerts
       },
       questionnaireProgress: {
+        // if you later add questionsAnswered, this will just start working
         answered: profile.securityQuestionnaire?.questionsAnswered || 0,
         total: 6,
-        percentage: Math.round(((profile.securityQuestionnaire?.questionsAnswered || 0) / 6) * 100)
+        percentage: Math.round(
+          ((profile.securityQuestionnaire?.questionsAnswered || 0) / 6) * 100
+        )
       }
     };
 
-    res.json(dashboardData);
+    return res.json(dashboardData);
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    console.error('Dashboard error:', error);
+    return res.status(500).json({ message: error.message });
   }
 };
 
