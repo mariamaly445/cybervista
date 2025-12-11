@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 const express = require('express');
 const router = express.Router();
 const scanController = require('../controllers/scanController');
@@ -16,30 +15,13 @@ router.get('/', scanController.getAllScans);
 // GET /api/scans/:id - Get single scan
 router.get('/:id', scanController.getScanById);
 
+// PUT /api/scans/:id - Update scan
+router.put('/:id', scanController.updateScan);
+
 // DELETE /api/scans/:id - Delete scan
 router.delete('/:id', scanController.deleteScan);
 
-// Test route
-router.get('/test', (req, res) => {
-    res.json({ message: 'Scan routes working!' });
-});
-=======
-const express = require("express");
-const router = express.Router();
-const {
-  createScan,
-  getScans,
-  updateScanStatus
-} = require("../controllers/scanController");
-
-// POST /api/scans
-router.post("/", createScan);
-
-// GET /api/scans/user/:userId
-router.get("/user/:userId", getScans);
-
-// PUT /api/scans/:id/status
-router.put("/:id/status", updateScanStatus);
->>>>>>> d2eb8e2c7072467626b631d9b9c9b893730d249b
+// GET /api/scans/stats - Get scan statistics
+router.get('/stats', scanController.getScanStats);
 
 module.exports = router;
