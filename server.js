@@ -48,11 +48,22 @@ app.get('/', (req, res) => {
   });
 });
 
-// MongoDB connection
+// ADD THESE 2 LINES ONLY (Error handling)
+app.use((req, res) => res.status(404).json({ error: 'Route not found' }));
+app.use((err, req, res, next) => {
+  console.error(err.stack);
+  res.status(500).json({ error: 'Server error' });
+});
+
+// MongoDB connection (Your friend's code)
 mongoose.connect(process.env.MONGO_URI)
   .then(() => {
     console.log('✅ MongoDB Connected');
+<<<<<<< HEAD
+    
+=======
 
+>>>>>>> d2eb8e2c7072467626b631d9b9c9b893730d249b
     const PORT = process.env.PORT || 5001;
     app.listen(PORT, () => {
       console.log(`🚀 Server running on port ${PORT}`);

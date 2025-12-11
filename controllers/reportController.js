@@ -1,73 +1,78 @@
 const AuditReport = require('../models/AuditReport');
-const CompanyProfile = require('../models/CompanyProfile');
-const User = require('../models/User');
 
-// Generate audit report
-const generateReport = async (req, res) => {
-  try {
-    const userId = req.params.userId;
+const reportController = {
+    // Generate a new report
+    generateReport: async (req, res) => {
+        try {
+            const newReport = new AuditReport({
+                userId: req.body.userId || 'temp-user-id', // In production, use req.user.id from auth middleware
+                reportType: req.body.reportType || 'Security Assessment',
+                status: 'Generated',
+                findings: req.body.findings || [],
+                recommendations: req.body.recommendations || []
+            });
 
-    // Get user and profile data
-    const user = await User.findById(userId);
-    if (!user) {
-      return res.status(404).json({ message: 'User not found' });
+            await newReport.save();
+
+            res.status(201).json({
+                success: true,
+                message: 'Report generated successfully',
+                report: newReport
+            });
+        } catch (error) {
+            res.status(500).json({
+                success: false,
+                message: 'Server error',
+                error: error.message
+            });
+        }
+    },
+
+    // Get all reports for user
+    getAllReports: async (req, res) => {
+        try {
+            const reports = await AuditReport.find({})
+                .sort({ createdAt: -1 })
+                .limit(50);
+
+            res.status(200).json({
+                success: true,
+                count: reports.length,
+                reports
+            });
+        } catch (error) {
+            res.status(500).json({
+                success: false,
+                message: 'Server error',
+                error: error.message
+            });
+        }
+    },
+
+    // Get single report by ID
+    getReportById: async (req, res) => {
+        try {
+            const report = await AuditReport.findById(req.params.id);
+            
+            if (!report) {
+                return res.status(404).json({
+                    success: false,
+                    message: 'Report not found'
+                });
+            }
+
+            res.status(200).json({
+                success: true,
+                report
+            });
+        } catch (error) {
+            res.status(500).json({
+                success: false,
+                message: 'Server error',
+                error: error.message
+            });
+        }
     }
-
-    const profile = await CompanyProfile.findOne({ userId });
-    if (!profile) {
-      return res.status(404).json({ message: 'Company profile not found' });
-    }
-
-    // Mock PDF generation (for now - returns JSON)
-    // In future, you can add actual PDF generation with libraries like pdfkit
-    const reportData = {
-      companyName: user.companyName,
-      reportDate: new Date(),
-      securityScore: profile.overallSecurityScore || 0,
-      vulnerabilitiesFound: 0, // You can calculate from scans
-      complianceStatus: profile.complianceStatus || {},
-      recommendations: [
-        "Implement multi-factor authentication",
-        "Schedule regular security audits",
-        "Update incident response plan",
-        "Encrypt sensitive data at rest"
-      ],
-      summary: ⁠ Security assessment for ${user.companyName} completed. ⁠,
-      generatedBy: 'CyberVista Audit System'
-    };
-
-    // Save report to database
-    const auditReport = await AuditReport.create({
-      userId,
-      companyName: user.companyName,
-      securityScore: reportData.securityScore,
-      complianceStatus: reportData.complianceStatus,
-      recommendations: reportData.recommendations,
-      pdfUrl: ⁠ /reports/${userId}/${Date.now()}.pdf ⁠ // Mock URL
-    });
-
-    res.status(201).json({
-      message: 'Audit report generated successfully',
-      reportId: auditReport._id,
-      reportData: reportData,
-      downloadUrl: auditReport.pdfUrl
-    });
-
-  } catch (error) {
-    res.status(500).json({ message: error.message });
-  }
 };
 
-// Get all reports for a user
-const getUserReports = async (req, res) => {
-  try {
-    const reports = await AuditReport.find({ userId: req.params.userId })
-      .sort({ reportDate: -1 });
-    
-    res.json(reports);
-  } catch (error) {
-    res.status(500).json({ message: error.message });
-  }
-};
-
-module.exports = { generateReport, getUserReports };
+module.exports = reportController;
