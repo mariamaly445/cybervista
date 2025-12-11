@@ -1,11 +1,14 @@
 const express = require('express');
 const router = express.Router();
-const { generateReport, getUserReports } = require('../controllers/reportController');
+const reportController = require('../controllers/reportController');
 
-// GET /api/reports/:userId - Generate new report
-router.get('/:userId', generateReport);
+// Generate a new report (POST is standard for creation)
+router.post('/', reportController.generateReport);
 
-// GET /api/reports/user/:userId - Get all user's reports
-router.get('/user/:userId', getUserReports);
+// Get all reports for current user
+router.get('/', reportController.getAllReports);
+
+// Get a specific report by ID
+router.get('/:id', reportController.getReportById);
 
 module.exports = router;

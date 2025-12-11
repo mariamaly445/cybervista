@@ -10,7 +10,6 @@ const {
 } = require('../controllers/authController');
 
 // PUBLIC ROUTES (No authentication needed)
-
 // POST /api/auth/register - Create new user account
 router.post('/register', register);
 

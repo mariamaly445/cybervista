@@ -9,7 +9,7 @@ const getDashboardData = async (req, res) => {
     const userId = req.params.userId;
 
     // Get profile data
-    const profile = await CompanyProfile.findOne({ userId })
+    const profile = await CompanysProfile.findOne({ userId })
       .populate('userId', 'companyName email industry');
 
     // Get latest scan
