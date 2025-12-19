@@ -10,6 +10,10 @@ const dashboardRoutes = require('./routes/dashboardRoutes');
 const scanRoutes = require('./routes/scanRoutes');
 const alertRoutes = require('./routes/alertRoutes');
 const reportRoutes = require('./routes/reportRoutes');
+const scoreRoutes = require('./routes/scoreRoutes');
+const complianceRoutes = require('./routes/complianceRoutes');
+const identityRoutes = require('./routes/identityRoutes');
+
 
 const app = express();
 
@@ -32,6 +36,9 @@ app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/scans', scanRoutes);
 app.use('/api/alerts', alertRoutes);
 app.use('/api/reports', reportRoutes);
+app.use('/api/scores', scoreRoutes);
+app.use('/api/compliance', complianceRoutes);
+app.use('/api/identity', identityRoutes);
 
 // Root endpoint
 app.get('/', (req, res) => {
