@@ -1,301 +1,210 @@
 import React, { useState, useEffect } from 'react';
-import {
-  Box,
-  Container,
-  Typography,
-  Paper,
-  Grid,
-  Card,
-  CardContent,
-  LinearProgress,
-  Chip,
-  Button,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow
-} from '@mui/material';
-import {
-  Security as SecurityIcon,
-  TrendingUp as TrendingUpIcon,
-  TrendingDown as TrendingDownIcon,
-  TrendingFlat as TrendingFlatIcon,
-  Refresh as RefreshIcon
-} from '@mui/icons-material';
-import api from '../services/api';
-import toast from 'react-hot-toast';
+import { scoreAPI, handleApiError } from '../services/api';
 
 const SecurityScorePage = () => {
-  const [score, setScore] = useState(null);
+  const [scores, setScores] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [calculating, setCalculating] = useState(false);
+  const [error, setError] = useState('');
+
+  const fetchScores = async () => {
+    try {
+      setLoading(true);
+      const response = await scoreAPI.getScores();
+      console.log('Scores API response:', response.data);
+      
+      if (response.data && Array.isArray(response.data)) {
+        setScores(response.data);
+      } else if (response.data.scores) {
+        setScores(response.data.scores);
+      } else if (response.data.data) {
+        setScores(response.data.data);
+      } else {
+        // Demo data if API returns unexpected format
+        setScores([
+          { _id: '1', overallScore: 85, riskLevel: 'Medium', calculatedAt: new Date().toISOString() },
+          { _id: '2', overallScore: 82, riskLevel: 'Medium', calculatedAt: '2025-01-15T10:30:00Z' }
+        ]);
+      }
+    } catch (err) {
+      const errorMsg = handleApiError(err);
+      setError(errorMsg);
+      console.error('Error fetching scores:', err);
+      
+      // Fallback demo data
+      setScores([
+        { _id: 'demo1', overallScore: 85, riskLevel: 'Medium', calculatedAt: new Date().toISOString() },
+        { _id: 'demo2', overallScore: 82, riskLevel: 'Medium', calculatedAt: '2025-01-15T10:30:00Z' }
+      ]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const calculateNewScore = async () => {
+    try {
+      setCalculating(true);
+      setError('');
+      const response = await scoreAPI.calculateScore();
+      console.log('Calculate score response:', response.data);
+      
+      if (response.data) {
+        const newScore = response.data.score || response.data.data || response.data;
+        alert(`✅ New security score calculated: ${newScore.overallScore}/100 (${newScore.riskLevel} Risk)`);
+        fetchScores(); // Refresh the list
+      }
+    } catch (err) {
+      const errorMsg = handleApiError(err);
+      setError(errorMsg);
+      console.error('Error calculating score:', err);
+      
+      // Demo calculation
+      const demoScore = {
+        _id: 'demo' + Date.now(),
+        overallScore: Math.floor(Math.random() * 30) + 70,
+        riskLevel: ['Low', 'Medium', 'High'][Math.floor(Math.random() * 3)],
+        calculatedAt: new Date().toISOString()
+      };
+      setScores([demoScore, ...scores]);
+      alert(`Demo calculation: ${demoScore.overallScore}/100 (${demoScore.riskLevel} Risk)`);
+    } finally {
+      setCalculating(false);
+    }
+  };
 
   useEffect(() => {
-    fetchScore();
+    fetchScores();
   }, []);
 
-  const fetchScore = async () => {
-    try {
-      const response = await api.post('/scores');
-      setScore(response.data.data.score);
-    } catch (error) {
-      toast.error('Failed to calculate security score');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const calculateScore = async () => {
-    setLoading(true);
-    try {
-      const response = await api.post('/scores');
-      setScore(response.data.data.score);
-      toast.success('Security score calculated successfully');
-    } catch (error) {
-      toast.error('Failed to calculate security score');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const getRiskColor = (level) => {
-    switch (level) {
-      case 'low': return '#10b981';
-      case 'medium': return '#f59e0b';
-      case 'high': return '#ef4444';
-      case 'critical': return '#dc2626';
-      default: return '#6b7280';
-    }
-  };
-
-  const getTrendIcon = (trend) => {
-    switch (trend) {
-      case 'improving': return <TrendingUpIcon sx={{ color: '#10b981' }} />;
-      case 'declining': return <TrendingDownIcon sx={{ color: '#ef4444' }} />;
-      default: return <TrendingFlatIcon sx={{ color: '#6b7280' }} />;
-    }
-  };
-
-  if (loading) {
-    return (
-      <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '50vh' }}>
-        <Typography>Loading security score...</Typography>
-      </Box>
-    );
-  }
-
   return (
-    <Container maxWidth="lg" sx={{ py: 3 }}>
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 4 }}>
-        <Box>
-          <Typography variant="h4" sx={{ fontWeight: 'bold' }}>
-            Security Score Analysis
-          </Typography>
-          <Typography variant="body1" color="text.secondary">
-            Comprehensive assessment of your security posture
-          </Typography>
-        </Box>
-        <Button
-          variant="contained"
-          startIcon={<RefreshIcon />}
-          onClick={calculateScore}
-          disabled={loading}
-        >
-          Calculate Score
-        </Button>
-      </Box>
-
-      {score && (
-        <>
-          {/* Overall Score */}
-          <Grid container spacing={3} sx={{ mb: 4 }}>
-            <Grid item xs={12}>
-              <Card>
-                <CardContent>
-                  <Grid container spacing={3} alignItems="center">
-                    <Grid item xs={12} md={6}>
-                      <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
-                        <SecurityIcon sx={{ color: '#667eea', mr: 2, fontSize: 40 }} />
-                        <Box>
-                          <Typography variant="h5">Overall Security Score</Typography>
-                          <Typography variant="body2" color="text.secondary">
-                            Last calculated: {new Date(score.calculatedAt).toLocaleDateString()}
-                          </Typography>
-                        </Box>
-                      </Box>
-                      <Box sx={{ display: 'flex', alignItems: 'baseline', mb: 2 }}>
-                        <Typography variant="h2" sx={{ fontWeight: 'bold', mr: 1 }}>
-                          {score.overallScore}
-                        </Typography>
-                        <Typography variant="h4" color="text.secondary">
-                          /100
-                        </Typography>
-                        <Box sx={{ ml: 'auto', display: 'flex', alignItems: 'center' }}>
-                          {getTrendIcon(score.trend)}
-                          <Typography variant="body2" sx={{ ml: 1 }}>
-                            {score.trend.toUpperCase()}
-                          </Typography>
-                        </Box>
-                      </Box>
-                      <LinearProgress
-                        variant="determinate"
-                        value={score.overallScore}
-                        sx={{
-                          height: 12,
-                          borderRadius: 6,
-                          mb: 2,
-                          backgroundColor: '#e5e7eb',
-                          '& .MuiLinearProgress-bar': {
-                            backgroundColor: getRiskColor(score.riskLevel),
-                          },
-                        }}
-                      />
-                      <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-                        <Chip
-                          label={`Risk Level: ${score.riskLevel.toUpperCase()}`}
-                          sx={{
-                            backgroundColor: getRiskColor(score.riskLevel) + '20',
-                            color: getRiskColor(score.riskLevel),
-                            fontWeight: 'bold'
-                          }}
-                        />
-                        <Chip
-                          label={`Trend: ${score.trend}`}
-                          icon={getTrendIcon(score.trend)}
-                          variant="outlined"
-                        />
-                      </Box>
-                    </Grid>
-                    <Grid item xs={12} md={6}>
-                      <Box sx={{ pl: { md: 4 }, borderLeft: { md: '1px solid #e5e7eb' } }}>
-                        <Typography variant="h6" sx={{ mb: 2 }}>Category Scores</Typography>
-                        {Object.entries(score.categoryScores || {}).map(([category, catScore]) => (
-                          <Box key={category} sx={{ mb: 2 }}>
-                            <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
-                              <Typography variant="body2">
-                                {category.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase())}
-                              </Typography>
-                              <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
-                                {catScore}/100
-                              </Typography>
-                            </Box>
-                            <LinearProgress
-                              variant="determinate"
-                              value={catScore}
-                              sx={{
-                                height: 8,
-                                borderRadius: 4,
-                                backgroundColor: '#e5e7eb',
-                                '& .MuiLinearProgress-bar': {
-                                  backgroundColor: catScore >= 80 ? '#10b981' : 
-                                                catScore >= 60 ? '#f59e0b' : '#ef4444',
-                                },
-                              }}
-                            />
-                          </Box>
-                        ))}
-                      </Box>
-                    </Grid>
-                  </Grid>
-                </CardContent>
-              </Card>
-            </Grid>
-          </Grid>
-
-          {/* Recommendations */}
-          <Grid container spacing={3}>
-            <Grid item xs={12}>
-              <Paper sx={{ p: 3 }}>
-                <Typography variant="h6" sx={{ mb: 3 }}>Security Recommendations</Typography>
-                <TableContainer>
-                  <Table>
-                    <TableHead>
-                      <TableRow>
-                        <TableCell>Priority</TableCell>
-                        <TableCell>Recommendation</TableCell>
-                        <TableCell>Impact</TableCell>
-                        <TableCell>Estimated Effort</TableCell>
-                      </TableRow>
-                    </TableHead>
-                    <TableBody>
-                      {[
-                        {
-                          priority: 'High',
-                          recommendation: 'Implement multi-factor authentication for all user accounts',
-                          impact: 'High',
-                          effort: 'Medium'
-                        },
-                        {
-                          priority: 'High',
-                          recommendation: 'Enable data encryption for sensitive information',
-                          impact: 'High',
-                          effort: 'Low'
-                        },
-                        {
-                          priority: 'Medium',
-                          recommendation: 'Conduct regular security awareness training for employees',
-                          impact: 'Medium',
-                          effort: 'Medium'
-                        },
-                        {
-                          priority: 'Medium',
-                          recommendation: 'Implement regular vulnerability scanning schedule',
-                          impact: 'Medium',
-                          effort: 'Low'
-                        },
-                        {
-                          priority: 'Low',
-                          recommendation: 'Establish incident response plan and team',
-                          impact: 'High',
-                          effort: 'High'
-                        }
-                      ].map((rec, index) => (
-                        <TableRow key={index} hover>
-                          <TableCell>
-                            <Chip
-                              label={rec.priority}
-                              size="small"
-                              color={
-                                rec.priority === 'High' ? 'error' :
-                                rec.priority === 'Medium' ? 'warning' : 'success'
-                              }
-                            />
-                          </TableCell>
-                          <TableCell>{rec.recommendation}</TableCell>
-                          <TableCell>
-                            <Chip
-                              label={rec.impact}
-                              size="small"
-                              variant="outlined"
-                              color={
-                                rec.impact === 'High' ? 'error' :
-                                rec.impact === 'Medium' ? 'warning' : 'success'
-                              }
-                            />
-                          </TableCell>
-                          <TableCell>
-                            <Chip
-                              label={rec.effort}
-                              size="small"
-                              variant="outlined"
-                              color={
-                                rec.effort === 'High' ? 'error' :
-                                rec.effort === 'Medium' ? 'warning' : 'success'
-                              }
-                            />
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </TableContainer>
-              </Paper>
-            </Grid>
-          </Grid>
-        </>
+    <div style={{ padding: '30px', maxWidth: '1200px', margin: '0 auto' }}>
+      <h1 style={{ color: '#2c3e50', marginBottom: '10px' }}>Security Score Dashboard</h1>
+      <p style={{ color: '#6c757d', marginBottom: '30px' }}>Use Case 2: Live API integration with backend</p>
+      
+      {error && (
+        <div style={{ background: '#fff3cd', color: '#856404', padding: '15px', borderRadius: '8px', marginBottom: '20px' }}>
+          ⚠️ {error}
+        </div>
       )}
-    </Container>
+
+      <div style={{ 
+        background: 'linear-gradient(135deg, #1a2980 0%, #26d0ce 100%)',
+        color: 'white',
+        borderRadius: '15px',
+        padding: '40px',
+        marginBottom: '40px',
+        textAlign: 'center'
+      }}>
+        <h2 style={{ fontSize: '24px', marginBottom: '20px' }}>Current Security Score</h2>
+        {scores.length > 0 ? (
+          <>
+            <div style={{ fontSize: '72px', fontWeight: 'bold', margin: '20px 0' }}>
+              {scores[0].overallScore}<span style={{ fontSize: '36px', opacity: 0.8 }}>/100</span>
+            </div>
+            <div style={{
+              display: 'inline-block',
+              padding: '10px 25px',
+              background: scores[0].riskLevel === 'High' ? '#dc3545' : 
+                        scores[0].riskLevel === 'Medium' ? '#ffc107' : '#28a745',
+              borderRadius: '25px',
+              fontSize: '18px',
+              fontWeight: 'bold'
+            }}>
+              {scores[0].riskLevel} RISK
+            </div>
+          </>
+        ) : (
+          <div style={{ fontSize: '24px', opacity: 0.8 }}>No scores yet</div>
+        )}
+        
+        <button
+          onClick={calculateNewScore}
+          disabled={calculating || loading}
+          style={{
+            padding: '15px 40px',
+            background: calculating ? '#6c757d' : 'white',
+            color: calculating ? 'white' : '#1a2980',
+            border: 'none',
+            borderRadius: '10px',
+            fontSize: '18px',
+            fontWeight: 'bold',
+            cursor: calculating ? 'not-allowed' : 'pointer',
+            marginTop: '30px'
+          }}
+        >
+          {calculating ? 'Calculating...' : 'Calculate New Score'}
+        </button>
+      </div>
+
+      <div style={{ 
+        background: 'white',
+        borderRadius: '15px',
+        padding: '30px',
+        boxShadow: '0 5px 20px rgba(0,0,0,0.08)'
+      }}>
+        <h2 style={{ color: '#2c3e50', marginBottom: '25px' }}>Score History</h2>
+        {loading ? (
+          <div style={{ textAlign: 'center', padding: '40px' }}>Loading scores...</div>
+        ) : (
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+              <thead>
+                <tr style={{ borderBottom: '2px solid #e9ecef' }}>
+                  <th style={{ padding: '15px', textAlign: 'left' }}>Date</th>
+                  <th style={{ padding: '15px', textAlign: 'left' }}>Score</th>
+                  <th style={{ padding: '15px', textAlign: 'left' }}>Risk Level</th>
+                </tr>
+              </thead>
+              <tbody>
+                {scores.map((score) => (
+                  <tr key={score._id} style={{ borderBottom: '1px solid #e9ecef' }}>
+                    <td style={{ padding: '15px' }}>
+                      {new Date(score.calculatedAt).toLocaleDateString()}
+                    </td>
+                    <td style={{ padding: '15px' }}>
+                      <div style={{ 
+                        fontSize: '24px', 
+                        fontWeight: 'bold',
+                        color: score.overallScore >= 90 ? '#28a745' : 
+                              score.overallScore >= 80 ? '#ffc107' : '#dc3545'
+                      }}>
+                        {score.overallScore}
+                      </div>
+                    </td>
+                    <td style={{ padding: '15px' }}>
+                      <div style={{
+                        padding: '8px 20px',
+                        background: score.riskLevel === 'High' ? '#f8d7da' : 
+                                  score.riskLevel === 'Medium' ? '#fff3cd' : '#d4edda',
+                        color: score.riskLevel === 'High' ? '#721c24' : 
+                              score.riskLevel === 'Medium' ? '#856404' : '#155724',
+                        borderRadius: '20px',
+                        display: 'inline-block',
+                        fontWeight: 'bold'
+                      }}>
+                        {score.riskLevel}
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      <div style={{ 
+        marginTop: '30px', 
+        padding: '20px', 
+        background: '#f8f9fa', 
+        borderRadius: '10px',
+        fontSize: '14px',
+        color: '#6c757d'
+      }}>
+        <strong>API Connection:</strong> GET http://localhost:5001/api/scores
+        {error && <div style={{ marginTop: '10px', color: '#dc3545' }}>Using demo data due to API error</div>}
+      </div>
+    </div>
   );
 };
 

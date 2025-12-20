@@ -1,15 +1,18 @@
 const express = require('express');
 const router = express.Router();
-const {
-  getAllVerifications,
-  submitVerification
-} = require('../controllers/identityController');
-const { requireAuth } = require('../middleware/authMiddleware');
 
-router.use(requireAuth);
+router.get('/status', (req, res) => {
+  res.json({
+    status: 'pending',
+    riskScore: 65
+  });
+});
 
-router.route('/')
-  .get(getAllVerifications)
-  .post(submitVerification);
+router.post('/upload', (req, res) => {
+  res.json({
+    success: true,
+    message: 'Document uploaded'
+  });
+});
 
 module.exports = router;

@@ -1,34 +1,63 @@
 import axios from 'axios';
 
-const api = axios.create({
-  baseURL: import.meta.env.VITE_API_URL || 'http://localhost:5001/api',
+const API = axios.create({
+  baseURL: 'http://localhost:5001/api',
   headers: {
     'Content-Type': 'application/json',
   },
 });
 
-api.interceptors.request.use(
-  (config) => {
-    const token = localStorage.getItem('token');
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
-    }
-    return config;
+// Authentication API
+export const authAPI = {
+  register: (userData) => API.post('/auth/register', userData),
+  login: (credentials) => API.post('/auth/login', credentials),
+  logout: () => {
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
   },
-  (error) => {
-    return Promise.reject(error);
-  }
-);
+  getProfile: () => API.get('/auth/profile'),
+};
 
-api.interceptors.response.use(
-  (response) => response,
-  (error) => {
-    if (error.response?.status === 401) {
-      localStorage.removeItem('token');
-      window.location.href = '/login';
-    }
-    return Promise.reject(error);
-  }
-);
+// Security Score API
+export const scoreAPI = {
+  calculateScore: () => API.post('/scores/calculate'),
+  getScores: () => API.get('/scores'),
+};
 
-export default api;
+// Vulnerability Scan API
+export const scanAPI = {
+  getScans: () => API.get('/scans'),
+  scheduleScan: (scanData) => API.post('/scans/schedule', scanData),
+};
+
+// Compliance API
+export const complianceAPI = {
+  getChecklist: (standard) => API.get(`/compliance/${standard}`),
+  updateItem: (standard, itemId, data) => API.put(`/compliance/${standard}/item/${itemId}`, data),
+};
+
+// Fraud Detection API
+export const fraudAPI = {
+  getAlerts: () => API.get('/alerts'),
+  createAlert: (alertData) => API.post('/alerts', alertData),
+};
+
+// Identity Verification API
+export const identityAPI = {
+  getStatus: () => API.get('/identity/status'),
+  uploadDocument: (documentData) => API.post('/identity/upload', documentData),
+  submitVerification: () => API.post('/identity/verify'),
+};
+
+// Error handling helper
+export const handleApiError = (error) => {
+  if (error.response) {
+    return error.response.data?.message || `Server error: ${error.response.status}`;
+  } else if (error.request) {
+    return 'No response from server. Check if backend is running.';
+  } else {
+    return error.message || 'An error occurred';
+  }
+};
+
+export default API;
