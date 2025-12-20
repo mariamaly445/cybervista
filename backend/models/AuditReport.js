@@ -6,40 +6,54 @@ const AuditReportSchema = new mongoose.Schema({
     ref: 'User',
     required: true
   },
-  companyName: {
+  reportType: {
     type: String,
-    required: true
+    enum: ['security_assessment', 'compliance', 'vulnerability', 'incident'],
+    default: 'security_assessment'
   },
-  reportDate: {
+  title: {
+    type: String,
+    required: true,
+    trim: true
+  },
+  description: {
+    type: String,
+    trim: true
+  },
+  generatedAt: {
     type: Date,
     default: Date.now
   },
-  securityScore: {
-    type: Number,
-    min: 0,
-    max: 100,
-    required: true
+  data: {
+    securityScore: Number,
+    vulnerabilities: {
+      critical: Number,
+      high: Number,
+      medium: Number,
+      low: Number
+    },
+    complianceStatus: {
+      pciDss: Boolean,
+      iso27001: Boolean,
+      gdpr: Boolean
+    },
+    recommendations: [String]
   },
-  vulnerabilitiesFound: {
-    type: Number,
-    default: 0
-  },
-  complianceStatus: {
-    pciDss: { type: Boolean, default: false },
-    iso27001: { type: Boolean, default: false },
-    gdpr: { type: Boolean, default: false }
-  },
-  recommendations: [{
+  fileUrl: {
     type: String
-  }],
-  pdfUrl: {
-    type: String,
-    default: ''
   },
-  generatedBy: {
+  format: {
     type: String,
-    default: 'CyberVista System'
+    enum: ['pdf', 'html', 'json'],
+    default: 'pdf'
+  },
+  status: {
+    type: String,
+    enum: ['generating', 'completed', 'failed'],
+    default: 'generating'
   }
+}, {
+  timestamps: true
 });
 
 module.exports = mongoose.model('AuditReport', AuditReportSchema);

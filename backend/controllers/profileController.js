@@ -1,136 +1,125 @@
-// controllers/profileController.js
-
 const CompanyProfile = require('../models/CompanyProfile');
+const User = require('../models/User');
 
-/**
- * CREATE PROFILE (POST /api/profile)
- */
-const createProfile = async (req, res) => {
+exports.createOrUpdateProfile = async (req, res) => {
   try {
-    console.log("🔍 req.user =", req.user);
+    const userId = req.user.userId;
+    const profileData = req.body;
 
-    const userId = req.user?.userId;
-
-    if (!userId) {
-      return res.status(401).json({
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({
         success: false,
-        message: "Authentication required (no userId found)"
+        message: 'User not found'
       });
     }
 
-    // Prevent duplicate profile
-    const existing = await CompanyProfile.findOne({ userId });
-    if (existing) {
+    let profile = await CompanyProfile.findOne({ userId });
+
+    if (profile) {
+      profile = await CompanyProfile.findOneAndUpdate(
+        { userId },
+        { $set: profileData },
+        { new: true, runValidators: true }
+      );
+      
+      return res.json({
+        success: true,
+        message: 'Profile updated successfully',
+        profile
+      });
+    } else {
+      profile = await CompanyProfile.create({
+        userId,
+        ...profileData
+      });
+
+      res.status(201).json({
+        success: true,
+        message: 'Profile created successfully',
+        profile
+      });
+    }
+  } catch (error) {
+    console.error('Profile error:', error);
+    
+    if (error.name === 'ValidationError') {
       return res.status(400).json({
         success: false,
-        message: "Profile already exists for this user",
-        data: existing
+        message: 'Validation error',
+        errors: Object.values(error.errors).map(err => err.message)
       });
     }
-
-    const profileData = {
-      userId,
-      securityQuestionnaire: req.body.securityQuestionnaire || {},
-      overallSecurityScore: req.body.overallSecurityScore ?? 50,
-    };
-
-    const profile = await CompanyProfile.create(profileData);
-
-    return res.status(201).json({
-      success: true,
-      message: "Profile created successfully",
-      data: profile
-    });
-
-  } catch (error) {
-    console.error("❌ CREATE PROFILE ERROR:", error);
-    return res.status(500).json({
+    
+    res.status(500).json({
       success: false,
-      message: "Server error",
-      error: error.message
+      message: 'Server error'
     });
   }
 };
 
-/**
- * GET PROFILE (GET /api/profile)
- */
-const getProfile = async (req, res) => {
+exports.getProfile = async (req, res) => {
   try {
-    const userId = req.user?.userId;
-
-    if (!userId) {
-      return res.status(401).json({
-        success: false,
-        message: "Authentication required"
-      });
-    }
-
-    const profile = await CompanyProfile.findOne({ userId });
+    const profile = await CompanyProfile.findOne({ userId: req.user.userId })
+      .populate('userId', 'companyName email');
 
     if (!profile) {
       return res.status(404).json({
         success: false,
-        message: "Profile not found"
+        message: 'Profile not found. Please create a profile first.'
       });
     }
 
-    return res.status(200).json({
+    res.json({
       success: true,
-      data: profile
+      profile
     });
-
   } catch (error) {
-    console.error("❌ GET PROFILE ERROR:", error);
-    return res.status(500).json({
+    console.error('Get profile error:', error);
+    res.status(500).json({
       success: false,
-      message: "Server error",
-      error: error.message
+      message: 'Server error'
     });
   }
 };
 
-/**
- * UPDATE PROFILE (PUT /api/profile)
- */
-const updateProfile = async (req, res) => {
+exports.updateQuestionnaire = async (req, res) => {
   try {
-    const userId = req.user?.userId;
-
-    if (!userId) {
-      return res.status(401).json({
+    const { questionnaire } = req.body;
+    
+    if (!questionnaire || typeof questionnaire !== 'object') {
+      return res.status(400).json({
         success: false,
-        message: "Authentication required"
+        message: 'Questionnaire data is required'
       });
     }
 
-    const updatedProfile = await CompanyProfile.findOneAndUpdate(
-      { userId },
-      { $set: req.body },
-      { new: true, runValidators: true }
-    );
+    let profile = await CompanyProfile.findOne({ userId: req.user.userId });
 
-    if (!updatedProfile) {
-      return res.status(404).json({
-        success: false,
-        message: "Profile not found for this user"
+    if (!profile) {
+      profile = await CompanyProfile.create({
+        userId: req.user.userId,
+        securityQuestionnaire: questionnaire
       });
+    } else {
+      profile.securityQuestionnaire = {
+        ...profile.securityQuestionnaire,
+        ...questionnaire,
+        lastUpdated: new Date()
+      };
+      await profile.save();
     }
 
-    return res.status(200).json({
+    res.json({
       success: true,
-      message: "Profile updated successfully",
-      data: updatedProfile
+      message: 'Questionnaire updated successfully',
+      profile
     });
-
   } catch (error) {
-    console.error("❌ UPDATE PROFILE ERROR:", error);
-    return res.status(500).json({
+    console.error('Questionnaire error:', error);
+    res.status(500).json({
       success: false,
-      message: "Server error",
-      error: error.message
+      message: 'Server error'
     });
   }
 };
-
-module.exports = { createProfile, getProfile, updateProfile };

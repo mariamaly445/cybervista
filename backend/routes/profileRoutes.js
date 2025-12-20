@@ -1,21 +1,18 @@
 const express = require('express');
 const router = express.Router();
-
 const {
-  createProfile,
+  createOrUpdateProfile,
   getProfile,
-  updateProfile
+  updateQuestionnaire
 } = require('../controllers/profileController');
+const { requireAuth } = require('../middleware/authMiddleware');
 
-const { requireAuth } = require('../controllers/authController');
+router.use(requireAuth);
 
-// CREATE profile
-router.post('/', requireAuth, createProfile);
+router.route('/')
+  .post(createOrUpdateProfile)
+  .get(getProfile);
 
-// READ profile
-router.get('/', requireAuth, getProfile);
-
-// UPDATE profile
-router.put('/', requireAuth, updateProfile);
+router.put('/questionnaire', updateQuestionnaire);
 
 module.exports = router;

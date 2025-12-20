@@ -1,254 +1,162 @@
-// controllers/scanController.js
 const VulnerabilityScan = require('../models/VulnerabilityScan');
+const SecurityAlert = require('../models/SecurityAlert');
 
-const scanController = {
-  // Create a new scan
-  createScan: async (req, res) => {
-    try {
-      const { targetUrl, scanType = 'quick', scanName = 'Security Scan' } = req.body;
-
-      if (!targetUrl) {
-        return res.status(400).json({
-          success: false,
-          message: 'Target URL is required'
-        });
+const mockVulnerabilityScanner = async (targetUrl, scanType) => {
+  await new Promise(resolve => setTimeout(resolve, 2000));
+  
+  const baseCount = scanType === 'full' ? 25 : scanType === 'quick' ? 10 : 15;
+  
+  return {
+    critical: Math.floor(Math.random() * 3),
+    high: Math.floor(Math.random() * 5),
+    medium: Math.floor(Math.random() * baseCount),
+    low: Math.floor(Math.random() * baseCount * 2),
+    info: Math.floor(Math.random() * baseCount * 3),
+    total: 0,
+    findings: [
+      {
+        severity: 'high',
+        description: 'SQL Injection vulnerability detected',
+        recommendation: 'Use parameterized queries or prepared statements'
+      },
+      {
+        severity: 'medium',
+        description: 'Cross-Site Scripting (XSS) vulnerability',
+        recommendation: 'Implement proper input validation and output encoding'
       }
+    ]
+  };
+};
 
-      if (!req.user || !req.user.userId) {
-        return res.status(401).json({
-          success: false,
-          message: 'Authentication required'
-        });
-      }
+exports.createScan = async (req, res) => {
+  try {
+    const { targetUrl, scanType = 'quick', scanName } = req.body;
+    const userId = req.user.userId;
 
-      const newScan = new VulnerabilityScan({
-        userId: req.user.userId,
-        targetUrl,
-        scanType,
-        scanName,
-        status: 'Pending',
-        scanDate: new Date()
-      });
-
-      await newScan.save();
-
-      return res.status(201).json({
-        success: true,
-        message: 'Scan initiated successfully',
-        data: { scan: newScan }
-      });
-    } catch (error) {
-      console.error('Create scan error:', error);
-      return res.status(500).json({
+    if (!targetUrl) {
+      return res.status(400).json({
         success: false,
-        message: 'Server error',
-        error: error.message
+        message: 'Target URL is required'
       });
     }
-  },
 
-  // Get all scans for current user
-  getAllScans: async (req, res) => {
     try {
-      if (!req.user || !req.user.userId) {
-        return res.status(401).json({
-          success: false,
-          message: 'Authentication required'
+      new URL(targetUrl);
+    } catch (error) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid URL format'
+      });
+    }
+
+    const scan = await VulnerabilityScan.create({
+      userId,
+      scanName: scanName || `Scan for ${targetUrl}`,
+      targetUrl,
+      scanType,
+      status: 'pending',
+      scanDate: new Date()
+    });
+
+    setTimeout(async () => {
+      try {
+        await VulnerabilityScan.findByIdAndUpdate(scan._id, {
+          status: 'in_progress'
         });
-      }
 
-      const scans = await VulnerabilityScan.find({
-        userId: req.user.userId
-      }).sort({ scanDate: -1 });
+        const results = await mockVulnerabilityScanner(targetUrl, scanType);
+        results.total = results.critical + results.high + results.medium + results.low + results.info;
+        
+        const updatedScan = await VulnerabilityScan.findByIdAndUpdate(
+          scan._id,
+          {
+            status: 'completed',
+            completedAt: new Date(),
+            results,
+            scanDuration: Math.floor(Math.random() * 120) + 30
+          },
+          { new: true }
+        );
 
-      return res.status(200).json({
-        success: true,
-        message: 'Scans retrieved successfully',
-        data: {
-          scans,
-          count: scans.length
+        if (results.critical > 0 || results.high > 0) {
+          await SecurityAlert.create({
+            userId,
+            title: `Critical vulnerabilities found in ${targetUrl}`,
+            message: `Scan completed with ${results.critical} critical and ${results.high} high vulnerabilities.`,
+            alertLevel: results.critical > 0 ? 'critical' : 'high',
+            alertType: 'vulnerability',
+            source: 'automated_scan',
+            relatedScan: scan._id
+          });
         }
-      });
-    } catch (error) {
-      console.error('Get all scans error:', error);
-      return res.status(500).json({
-        success: false,
-        message: 'Server error',
-        error: error.message
-      });
-    }
-  },
-
-  // Get single scan by ID
-  getScanById: async (req, res) => {
-    try {
-      if (!req.user || !req.user.userId) {
-        return res.status(401).json({
-          success: false,
-         message: 'Authentication required'
+      } catch (error) {
+        console.error('Scan processing error:', error);
+        
+        await VulnerabilityScan.findByIdAndUpdate(scan._id, {
+          status: 'failed',
+          errorMessage: error.message
         });
       }
+    }, 1000);
 
-      const scan = await VulnerabilityScan.findOne({
-        _id: req.params.id,
-        userId: req.user.userId
-      });
-
-      if (!scan) {
-        return res.status(404).json({
-          success: false,
-          message: 'Scan not found'
-        });
-      }
-
-      return res.status(200).json({
-        success: true,
-        message: 'Scan retrieved successfully',
-        data: { scan }
-      });
-    } catch (error) {
-      console.error('Get scan by ID error:', error);
-      return res.status(500).json({
-        success: false,
-        message: 'Server error',
-        error: error.message
-      });
-    }
-  },
-
-  // Update a scan
-  updateScan: async (req, res) => {
-    try {
-      if (!req.user || !req.user.userId) {
-        return res.status(401).json({
-          success: false,
-          message: 'Authentication required'
-        });
-      }
-
-      const { scanName, targetUrl, scanType, status } = req.body;
-
-      const scan = await VulnerabilityScan.findOneAndUpdate(
-        {
-          _id: req.params.id,
-          userId: req.user.userId
-        },
-        {
-          scanName,
-          targetUrl,
-          scanType,
-          status,
-          updatedAt: new Date()
-        },
-        {
-          new: true,
-          runValidators: true
+    res.status(201).json({
+      success: true,
+      message: 'Scan initiated successfully',
+      data: {
+        scan: {
+          id: scan._id,
+          scanName: scan.scanName,
+          targetUrl: scan.targetUrl,
+          scanType: scan.scanType,
+          status: scan.status,
+          scanDate: scan.scanDate
         }
-      );
-
-      if (!scan) {
-        return res.status(404).json({
-          success: false,
-          message: 'Scan not found or unauthorized'
-        });
       }
-
-      return res.status(200).json({
-        success: true,
-        message: 'Scan updated successfully',
-        data: { scan }
-      });
-    } catch (error) {
-      console.error('Update scan error:', error);
-      return res.status(500).json({
-        success: false,
-        message: 'Server error',
-        error: error.message
-      });
-    }
-  },
-
-  // Delete a scan
-  deleteScan: async (req, res) => {
-    try {
-      if (!req.user || !req.user.userId) {
-        return res.status(401).json({
-          success: false,
-          message: 'Authentication required'
-        });
-      }
-
-      const scan = await VulnerabilityScan.findOneAndDelete({
-        _id: req.params.id,
-        userId: req.user.userId
-      });
-
-      if (!scan) {
-        return res.status(404).json({
-          success: false,
-          message: 'Scan not found or unauthorized'
-        });
-      }
-
-      return res.status(200).json({
-        success: true,
-        message: 'Scan deleted successfully'
-      });
-    } catch (error) {
-      console.error('Delete scan error:', error);
-      return res.status(500).json({
-        success: false,
-        message: 'Server error',
-        error: error.message
-      });
-    }
-  },
-
-  // Get scan statistics for dashboard
-  getScanStats: async (req, res) => {
-    try {
-      if (!req.user || !req.user.userId) {
-        return res.status(401).json({
-          success: false,
-          message: 'Authentication required'
-        });
-      }
-
-      const userId = req.user.userId;
-
-      const stats = {
-        totalScans: await VulnerabilityScan.countDocuments({ userId }),
-        completedScans: await VulnerabilityScan.countDocuments({
-          userId,
-          status: 'Completed'
-        }),
-        pendingScans: await VulnerabilityScan.countDocuments({
-          userId,
-          status: 'Pending'
-        }),
-        failedScans: await VulnerabilityScan.countDocuments({
-          userId,
-          status: 'Failed'
-        }),
-        recentScan: await VulnerabilityScan.findOne({ userId })
-          .sort({ scanDate: -1 })
-          .select('scanDate status targetUrl')
-      };
-
-      return res.status(200).json({
-        success: true,
-        message: 'Scan statistics retrieved',
-        data: stats
-      });
-    } catch (error) {
-      console.error('Get scan stats error:', error);
-      return res.status(500).json({
-        success: false,
-        message: 'Server error',
-        error: error.message
-      });
-    }
+    });
+  } catch (error) {
+    console.error('Create scan error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error'
+    });
   }
 };
 
-module.exports = scanController;
+exports.getAllScans = async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    const { page = 1, limit = 10, status, scanType } = req.query;
+    
+    const filter = { userId };
+    if (status) filter.status = status;
+    if (scanType) filter.scanType = scanType;
+    
+    const skip = (parseInt(page) - 1) * parseInt(limit);
+    
+    const scans = await VulnerabilityScan.find(filter)
+      .sort({ scanDate: -1 })
+      .skip(skip)
+      .limit(parseInt(limit));
+    
+    const total = await VulnerabilityScan.countDocuments(filter);
+    
+    res.json({
+      success: true,
+      data: {
+        scans,
+        pagination: {
+          page: parseInt(page),
+          limit: parseInt(limit),
+          total,
+          pages: Math.ceil(total / parseInt(limit))
+        }
+      }
+    });
+  } catch (error) {
+    console.error('Get scans error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error'
+    });
+  }
+};

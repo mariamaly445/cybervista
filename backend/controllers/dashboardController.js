@@ -1,76 +1,86 @@
-// controllers/dashboardController.js
 const CompanyProfile = require('../models/CompanyProfile');
 const VulnerabilityScan = require('../models/VulnerabilityScan');
 const SecurityAlert = require('../models/SecurityAlert');
+const Score = require('../models/Score');
+const User = require('../models/User');
 
-// Get dashboard data for a user
-const getDashboardData = async (req, res) => {
+exports.getDashboardOverview = async (req, res) => {
   try {
-    const userId = req.params.userId;
+    const userId = req.user.userId;
+    
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found'
+      });
+    }
 
-    // Get profile data
-    const profile = await CompanyProfile.findOne({ userId }).populate(
-      'userId',
-      'companyName email'
-    );
-
-    // Get latest scan
+    const profile = await CompanyProfile.findOne({ userId });
     const latestScan = await VulnerabilityScan.findOne({ userId })
       .sort({ scanDate: -1 })
-      .exec();
-
-    // Get unread alerts count
+      .limit(1);
+    
     const unreadAlerts = await SecurityAlert.countDocuments({
       userId,
       isRead: false
     });
-
-    // Get total scans
+    
+    const criticalAlerts = await SecurityAlert.countDocuments({
+      userId,
+      alertLevel: 'critical',
+      isResolved: false
+    });
+    
     const totalScans = await VulnerabilityScan.countDocuments({ userId });
-
-    if (!profile) {
-      return res.status(404).json({ message: 'No profile found for this user' });
-    }
+    const completedScans = await VulnerabilityScan.countDocuments({
+      userId,
+      status: 'completed'
+    });
+    
+    const recentAlerts = await SecurityAlert.find({ userId })
+      .sort({ createdAt: -1 })
+      .limit(5)
+      .select('title message alertLevel alertType createdAt isRead');
+    
+    const recentScans = await VulnerabilityScan.find({ userId })
+      .sort({ scanDate: -1 })
+      .limit(5)
+      .select('scanName targetUrl status scanDate results.total');
 
     const dashboardData = {
-      companyInfo: {
-        name: profile.userId?.companyName || 'Unknown',
-        email: profile.userId?.email || ''
+      userInfo: {
+        companyName: user.companyName,
+        email: user.email,
+        subscriptionPlan: user.subscriptionPlan
       },
-      securityMetrics: {
-        overallScore: profile.overallSecurityScore || 0,
-        lastAssessment: profile.lastAssessmentDate,
-        complianceStatus: profile.complianceStatus || {}
-      },
-      scanInfo: {
-        latestScan: latestScan
-          ? {
-              date: latestScan.scanDate,
-              status: latestScan.status,
-              vulnerabilities: latestScan.results || {}
-            }
-          : null,
-        totalScans: totalScans
+      metrics: {
+        securityScore: profile?.overallSecurityScore || 50,
+        totalScans,
+        completedScans,
+        vulnerabilities: latestScan?.results?.total || 0,
+        criticalVulnerabilities: latestScan?.results?.critical || 0
       },
       alerts: {
         unreadCount: unreadAlerts,
-        totalUnread: unreadAlerts
+        criticalCount: criticalAlerts,
+        recent: recentAlerts
       },
-      questionnaireProgress: {
-        // if you later add questionsAnswered, this will just start working
-        answered: profile.securityQuestionnaire?.questionsAnswered || 0,
-        total: 6,
-        percentage: Math.round(
-          ((profile.securityQuestionnaire?.questionsAnswered || 0) / 6) * 100
-        )
+      recentActivity: {
+        scans: recentScans,
+        lastScanDate: latestScan?.scanDate || null
       }
     };
 
-    return res.json(dashboardData);
+    res.json({
+      success: true,
+      data: dashboardData
+    });
   } catch (error) {
     console.error('Dashboard error:', error);
-    return res.status(500).json({ message: error.message });
+    res.status(500).json({
+      success: false,
+      message: 'Server error'
+    });
   }
 };
-
-module.exports = { getDashboardData };

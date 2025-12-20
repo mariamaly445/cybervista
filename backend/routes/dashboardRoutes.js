@@ -1,9 +1,12 @@
-// routes/dashboardRoutes.js
 const express = require('express');
 const router = express.Router();
-const { getDashboardData } = require('../controllers/dashboardController');
+const {
+  getDashboardOverview
+} = require('../controllers/dashboardController');
+const { requireAuth } = require('../middleware/authMiddleware');
 
-// GET /api/dashboard/:userId
-router.get('/:userId', getDashboardData);
+router.use(requireAuth);
 
-module.exports = router; 
+router.get('/overview', getDashboardOverview);
+
+module.exports = router;

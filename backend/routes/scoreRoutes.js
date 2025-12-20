@@ -1,9 +1,12 @@
 const express = require('express');
 const router = express.Router();
-const scoreController = require('../controllers/scoreController');
-const auth = require('../middleware/auth'); // Use your existing auth middleware
+const {
+  calculateScore
+} = require('../controllers/scoreController');
+const { requireAuth } = require('../middleware/authMiddleware');
 
-router.post('/', auth, scoreController.createScore);
-router.get('/', auth, scoreController.getScores);
+router.use(requireAuth);
+
+router.post('/', calculateScore);
 
 module.exports = router;

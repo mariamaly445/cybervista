@@ -1,30 +1,43 @@
 const express = require('express');
+const { body } = require('express-validator');
 const router = express.Router();
 const {
   register,
   login,
   getProfile,
   updateProfile,
+  changePassword,
   deactivateAccount,
-  requireAuth
+  logout
 } = require('../controllers/authController');
+const { requireAuth } = require('../middleware/authMiddleware');
+const { validateRequest } = require('../middleware/ValidateRequest');
 
-// PUBLIC ROUTES (No authentication needed)
-// POST /api/auth/register - Create new user account
-router.post('/register', register);
+const registerValidation = [
+  body('companyName')
+    .notEmpty().withMessage('Company name is required')
+    .isLength({ min: 2, max: 100 }).withMessage('Company name must be between 2-100 characters'),
+  body('email')
+    .isEmail().withMessage('Please enter a valid email')
+    .normalizeEmail(),
+  body('password')
+    .isLength({ min: 6 }).withMessage('Password must be at least 6 characters')
+];
 
-// POST /api/auth/login - Authenticate user and get token
-router.post('/login', login);
+const loginValidation = [
+  body('email')
+    .isEmail().withMessage('Please enter a valid email')
+    .normalizeEmail(),
+  body('password')
+    .notEmpty().withMessage('Password is required')
+];
 
-// PROTECTED ROUTES (Authentication required)
-
-// GET /api/auth/profile - Get current user's profile
+router.post('/register', registerValidation, validateRequest, register);
+router.post('/login', loginValidation, validateRequest, login);
 router.get('/profile', requireAuth, getProfile);
-
-// PUT /api/auth/profile - Update user profile
 router.put('/profile', requireAuth, updateProfile);
-
-// DELETE /api/auth/deactivate - Deactivate user account (soft delete)
+router.put('/change-password', requireAuth, changePassword);
 router.delete('/deactivate', requireAuth, deactivateAccount);
+router.post('/logout', requireAuth, logout);
 
 module.exports = router;
