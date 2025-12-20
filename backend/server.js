@@ -3,6 +3,11 @@ const mongoose = require('mongoose');
 const cors = require('cors');
 require('dotenv').config();
 
+const app = express();
+app.use(cors({
+  origin: 'http://localhost:5173' // Your frontend's URL
+}));
+
 // Import ALL routes
 const authRoutes = require('./routes/authRoutes');
 const profileRoutes = require('./routes/profileRoutes');
@@ -15,10 +20,10 @@ const complianceRoutes = require('./routes/complianceRoutes');
 const identityRoutes = require('./routes/identityRoutes');
 
 
-const app = express();
+
 
 // Middleware
-app.use(cors());
+app.use(cors({ origin: 'http://localhost:5173' }));
 app.use(express.json());
 
 // Debug middleware
