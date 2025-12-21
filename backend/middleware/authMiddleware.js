@@ -1,64 +1,20 @@
-const jwt = require('jsonwebtoken');
-const User = require('../models/User');
-
-const requireAuth = async (req, res, next) => {
-  try {
-    const authHeader = req.headers.authorization;
-    
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      return res.status(401).json({
-        success: false,
-        message: 'Access denied. No token provided.'
-      });
+// middleware/authMiddleware.js - FOR MILESTONE 1 TESTING
+const authMiddleware = (req, res, next) => {
+    try {
+        console.log(' Auth middleware');
+        // Attach a mock user object for testing
+        req.user = {
+            id: 'mock-user-id-for-milestone-1', // Used by your controllers
+            companyName: 'Test FinTech Inc'
+        };
+        next(); // Pass control to the next handler
+    } catch (error) {
+        console.error('Auth middleware error:', error);
+        res.status(401).json({ 
+            success: false, 
+            message: 'Authentication middleware error' 
+        });
     }
-
-    const token = authHeader.split(' ')[1];
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-
-    const user = await User.findById(decoded.userId);
-    
-    if (!user) {
-      return res.status(401).json({
-        success: false,
-        message: 'User no longer exists'
-      });
-    }
-
-    if (!user.isActive) {
-      return res.status(401).json({
-        success: false,
-        message: 'Account is deactivated'
-      });
-    }
-
-    req.user = {
-      userId: user._id,
-      companyName: user.companyName,
-      email: user.email,
-      role: user.role
-    };
-
-    next();
-  } catch (error) {
-    if (error.name === 'JsonWebTokenError') {
-      return res.status(401).json({
-        success: false,
-        message: 'Invalid token'
-      });
-    }
-
-    if (error.name === 'TokenExpiredError') {
-      return res.status(401).json({
-        success: false,
-        message: 'Token has expired. Please login again.'
-      });
-    }
-
-    res.status(500).json({
-      success: false,
-      message: 'Authentication failed'
-    });
-  }
 };
 
-module.exports = { requireAuth };
+module.exports = authMiddleware;
